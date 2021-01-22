@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class BezierCurve : MonoBehaviour
+public class BezierCurveDrawing : MonoBehaviour
 {
     //Drawing the line
     //Has to be at least 4 so-called control points
@@ -22,6 +22,7 @@ public class BezierCurve : MonoBehaviour
     public float marginOfError = .001f;
     //how accurate the measurement of the line is (MUST be even, bigger = more precise)
     public int simpsonsResolution = 20;
+    private Color[] colorsArray = { Color.white, Color.red, Color.blue, Color.magenta, Color.black };
 
     //Code for the actual game
     public Vector3[] pointsOnCurve;
@@ -29,50 +30,46 @@ public class BezierCurve : MonoBehaviour
     //Easier to use ABCD for the positions of the points so they are the same as in the tutorial image
     Vector3 A, B, C, D;
 
-    void Awake()
+    //Display without having to press play
+    void OnDrawGizmos()
     {
         A = startPoint.position;
         B = controlPointStart.position;
         C = controlPointEnd.position;
         D = endPoint.position;
 
+        //The Bezier curve's color
+        Gizmos.color = Color.white;
+
+        //The start position of the line
+        Vector3 lastPos = A;
+
+        //How many loops?
+        int loops = Mathf.FloorToInt(1f / resolution);
+
+        for (int i = 1; i <= loops; i++)
+        {
+            //Which t position are we at?
+            float t = i * resolution;
+
+            //Find the coordinates between the control points with a Catmull-Rom spline
+            Vector3 newPos = DeCasteljausAlgorithm(t);
+
+            //Draw this line segment
+            Gizmos.DrawLine(lastPos, newPos);
+
+            //Save this pos so we can draw the next line segment
+            lastPos = newPos;
+        }
+
         //Also draw lines between the control points and endpoints
+        Gizmos.color = Color.green;
+
+        Gizmos.DrawLine(A, B);
+        Gizmos.DrawLine(C, D);
         pointsOnCurve = DivideCurveIntoSteps();
     }
 
-    //Breaking the line into parts
-    Vector3[] DivideCurveIntoSteps()
-    {
-        Vector3[] points = new Vector3[parts + 1];
-
-        points[0] = A;
-
-        //Find the total length of the curve
-        float totalLength = GetLengthSimpsons(0f, 1f);
-
-        //What's the length of one section?
-        float sectionLength = totalLength / (float)parts;
-
-        //Init the variables we need in the loop
-        float currentDistance = sectionLength;
-
-        for (int i = 1; i <= parts; i++)
-        {
-            //Use Newton–Raphsons method to find the t value from the start of the curve 
-            //to the end of the distance we have
-            float t = FindTValue(currentDistance, totalLength);
-
-            //Get the coordinate on the Bezier curve at this t value
-            Vector3 pos = DeCasteljausAlgorithm(t);
-
-            //Add to the distance traveled on the line so far
-            currentDistance += sectionLength;
-
-            points[i] = pos;
-        }
-
-        return points;
-    }
     //The De Casteljau's Algorithm
     Vector3 DeCasteljausAlgorithm(float t)
     {
@@ -95,6 +92,66 @@ public class BezierCurve : MonoBehaviour
         Vector3 U = oneMinusT * P + t * T;
 
         return U;
+    }
+
+    //Breaking the line into parts
+    Vector3[] DivideCurveIntoSteps()
+    {
+        Vector3[] points = new Vector3[parts];
+
+        //Find the total length of the curve
+        float totalLength = GetLengthSimpsons(0f, 1f);
+
+        //What's the length of one section?
+        float sectionLength = totalLength / (float)parts;
+
+        //Init the variables we need in the loop
+        float currentDistance = 0f + sectionLength;
+
+        //The curve's start position
+        Vector3 lastPos = A;
+
+        //The Bezier curve's color
+        //Need a seed or the line will constantly change color
+        Random.InitState(12345);
+
+        int lastRandom = Random.Range(0, colorsArray.Length);
+
+        for (int i = 0; i < parts; i++)
+        {
+            //Use Newton–Raphsons method to find the t value from the start of the curve 
+            //to the end of the distance we have
+            float t = FindTValue(currentDistance, totalLength);
+
+            //Get the coordinate on the Bezier curve at this t value
+            Vector3 pos = DeCasteljausAlgorithm(t);
+
+            //Draw the line with a random color
+            int newRandom = Random.Range(0, colorsArray.Length);
+
+            //Get a different random number each time
+            while (newRandom == lastRandom)
+            {
+                newRandom = Random.Range(0, colorsArray.Length);
+            }
+
+            lastRandom = newRandom;
+
+            Gizmos.color = colorsArray[newRandom];
+
+            Gizmos.DrawLine(lastPos, pos);
+
+
+            //Save the last position
+            lastPos = pos;
+
+            //Add to the distance traveled on the line so far
+            currentDistance += sectionLength;
+
+            points[i] = pos;
+        }
+
+        return points;
     }
     float FindTValue(float d, float totalLength)
     {
